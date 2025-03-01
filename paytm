@@ -1,0 +1,113 @@
+"use strict";
+
+const crypt = require("./crypt");
+const crypto = require("crypto");
+
+// Helper function to convert parameters to string format
+function paramsToString(params, mandatoryFlag = false) {
+    const tempKeys = Object.keys(params).sort();
+    let data = "";
+
+    tempKeys.forEach(key => {
+        if (params[key].includes("REFUND") || params[key].includes("|")) {
+            params[key] = "";
+        }
+        if (key !== "CHECKSUMHASH") {
+            if (params[key] === "null") params[key] = "";
+            if (!mandatoryFlag || (global.mandatoryParams && global.mandatoryParams.includes(key))) {
+                data += params[key] + "|";
+            }
+        }
+    });
+    return data;
+}
+
+// Generate checksum
+function genChecksum(params, key, cb) {
+    try {
+        const data = paramsToString(params);
+        crypt.gen_salt(4, (err, salt) => {
+            if (err) return cb(err);
+            const sha256 = crypto.createHash("sha256").update(data + salt).digest("hex");
+            const checkSum = sha256 + salt;
+            const encrypted = crypt.encrypt(checkSum, key);
+            cb(null, encrypted);
+        });
+    } catch (error) {
+        cb(error);
+    }
+}
+
+// Generate checksum by string
+function genChecksumByString(params, key, cb) {
+    try {
+        crypt.gen_salt(4, (err, salt) => {
+            if (err) return cb(err);
+            const sha256 = crypto.createHash("sha256").update(params + "|" + salt).digest("hex");
+            const checkSum = sha256 + salt;
+            const encrypted = crypt.encrypt(checkSum, key);
+            cb(null, encodeURIComponent(encrypted));
+        });
+    } catch (error) {
+        cb(error);
+    }
+}
+
+// Verify checksum
+function verifyChecksum(params, key, checksumHash) {
+    if (!checksumHash) {
+        console.log("Checksum not found");
+        return false;
+    }
+    try {
+        const data = paramsToString(params, false);
+        const temp = decodeURIComponent(checksumHash.trim());
+        const decrypted = crypt.decrypt(temp, key);
+        const salt = decrypted.slice(-4);
+        const sha256 = decrypted.slice(0, -4);
+        const hash = crypto.createHash("sha256").update(data + salt).digest("hex");
+        return hash === sha256;
+    } catch (error) {
+        console.log("Checksum verification failed", error);
+        return false;
+    }
+}
+
+// Verify checksum by string
+function verifyChecksumByString(params, key, checksumHash) {
+    try {
+        const decrypted = crypt.decrypt(checksumHash, key);
+        const salt = decrypted.slice(-4);
+        const sha256 = decrypted.slice(0, -4);
+        const hash = crypto.createHash("sha256").update(params + "|" + salt).digest("hex");
+        return hash === sha256;
+    } catch (error) {
+        console.log("Checksum verification failed", error);
+        return false;
+    }
+}
+
+// Generate checksum for refund
+function genChecksumForRefund(params, key, cb) {
+    try {
+        const data = paramsToString(params);
+        crypt.gen_salt(4, (err, salt) => {
+            if (err) return cb(err);
+            const sha256 = crypto.createHash("sha256").update(data + salt).digest("hex");
+            const checkSum = sha256 + salt;
+            const encrypted = crypt.encrypt(checkSum, key);
+            params.CHECKSUM = encodeURIComponent(encrypted);
+            cb(null, params);
+        });
+    } catch (error) {
+        cb(error);
+    }
+}
+
+module.exports = {
+    genChecksum,
+    verifyChecksum,
+    verifyChecksumByString,
+    genChecksumByString,
+    genChecksumForRefund
+};
