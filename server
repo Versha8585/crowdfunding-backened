@@ -1,0 +1,32 @@
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const routes = require("./routes");
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 4000;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+
+// Routes
+app.use("/api/campaign", routes.campaign);
+app.use("/api/user", routes.user);
+app.use("/api/donate", routes.payment);
+app.use("/api/donation", routes.donation);
+app.use("/api/query", routes.query);
+
+// 404 Error Handling
+app.use((req, res) => {
+  res.status(404).json({ message: "Endpoint not found" });
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server running successfully on port ${PORT}`);
+});
